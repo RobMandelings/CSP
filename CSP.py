@@ -56,7 +56,10 @@ class CSP(ABC):
         """
         # TODO: Implement CSP::isComplete (problem 1)
 
-        pass
+        if self.isValid(assignment) and len(self.remainingVariables(assignment)) == 0:
+            return True
+
+        return False
 
     @abstractmethod
     def isValidPairwise(self, var1: Variable, val1: Value, var2: Variable, val2: Value) -> bool:
