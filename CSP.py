@@ -55,6 +55,7 @@ class CSP(ABC):
             :param assignment: dict (Variable -> value)
         """
         # TODO: Implement CSP::isComplete (problem 1)
+
         pass
 
     @abstractmethod
@@ -79,6 +80,7 @@ class CSP(ABC):
         domains = domainsFromAssignment(initialAssignment, self.variables)
         return self._solveBruteForce(initialAssignment, domains)
 
+    # Count the amounts of calls: can be used to answer a question from the assigment
     @monitor
     def _solveBruteForce(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]]) -> Optional[
         Dict[Variable, Value]]:
@@ -86,8 +88,25 @@ class CSP(ABC):
             Use `CSP::isComplete`, `CSP::isValid`, `CSP::selectVariable` and `CSP::orderDomain`.
             :return: a complete and valid assignment if one exists, None otherwise.
         """
+
+        # TODO: question, is this function called somewhere else where arc consistency is used for example
+        #  (when having to backtrack)
         # TODO: Implement CSP::_solveBruteForce (problem 1)
-        pass
+
+        if self.isComplete(assignment):
+            return assignment
+        else:
+            var = self.selectVariable(assignment, domains)
+
+            for value in self.orderDomain(assignment, domains, var):
+                assignment[var] = value
+                if self.isValid(assignment):
+                    result = self._solveBruteForce(assignment, domains)
+                    if result is not None:
+                        return result
+                    assignment.pop(var)
+
+            return None
 
     def solveForwardChecking(self, initialAssignment: Dict[Variable, Value] = dict()) -> Optional[
         Dict[Variable, Value]]:
