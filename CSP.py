@@ -1,4 +1,5 @@
 import random
+from copy import deepcopy
 from typing import Set, Dict, List, TypeVar, Optional
 from abc import ABC, abstractmethod
 
@@ -74,8 +75,20 @@ class CSP(ABC):
             Hint: use `CSP::neighbors` and `CSP::isValidPairwise` to check that all binary constraints are satisfied.
             Note that constraints are symmetrical, so you don't need to check them in both directions.
         """
-        # TODO: Implement CSP::isValid (problem 1)
-        pass
+
+        assignedVariables = assignment.keys()
+
+        for var in assignedVariables:
+            neighbours = self.neighbors(var)
+
+            # Filter out unassigned neighbour variables
+            neighbours = [neighbour for neighbour in neighbours if neighbour in assignedVariables]
+            # TODO don't check in both directions
+            for neighbour in neighbours:
+                if not self.isValidPairwise(var, assignment[var], neighbour, assignment[neighbour]):
+                    return False
+
+        return True
 
     def solveBruteForce(self, initialAssignment: Dict[Variable, Value] = dict()) -> Optional[Dict[Variable, Value]]:
         """ Called to solve this CSP with brute force technique.
@@ -104,11 +117,12 @@ class CSP(ABC):
             for value in self.orderDomain(assignment, domains, var):
                 assignment[var] = value
                 if self.isValid(assignment):
-                    result = self._solveBruteForce(assignment, domains)
+                    result = self._solveBruteForce(deepcopy(assignment), domains)
                     if result is not None:
                         return result
                     assignment.pop(var)
 
+            self.isValid(assignment)
             return None
 
     def solveForwardChecking(self, initialAssignment: Dict[Variable, Value] = dict()) -> Optional[
