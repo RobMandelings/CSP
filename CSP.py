@@ -108,6 +108,7 @@ class CSP(ABC):
         # TODO: question, is this function called somewhere else where arc consistency is used for example
         #  (when having to backtrack)
         # TODO: Implement CSP::_solveBruteForce (problem 1)
+        # TODO maybe remove duplicate code
 
         if self.isComplete(assignment):
             return assignment
@@ -140,11 +141,38 @@ class CSP(ABC):
             Use `CSP::forwardChecking` and you should no longer need to check if an assignment is valid.
             :return: a complete and valid assignment if one exists, None otherwise.
         """
-        # TODO: Implement CSP::_solveForwardChecking (problem 2)
-        pass
+
+        if self.isComplete(assignment):
+            return assignment
+        else:
+            var = self.selectVariable(assignment, domains)
+
+            for value in self.orderDomain(assignment, domains, var):
+                assignment[var] = value
+                pruned_domains = self.forwardChecking(assignment, domains, var)
+
+                valid = True
+                for pruned_domain in pruned_domains.values():
+                    if len(pruned_domain) == 0:
+                        valid = False
+
+                if not valid:
+                    assignment.pop(var)
+                else:
+                    result = self._solveForwardChecking(deepcopy(assignment), pruned_domains)
+
+                    if result is not None:
+                        return result
+
+            self.isValid(assignment)
+            return None
 
     def forwardChecking(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]],
-                        variable: Optional[Variable] = None) -> Dict[Variable, Set[Value]]:
+                        variable: Optional[Variable] = None) -> (bool, Dict[Variable, Set[Value]]):
+
+        # Differences noticed: less calls often necessary, although domains still randomly ordered so may take lots of calls.
+        # Calls are faster due to checking whether an assignment is valid or not happens faster (pruned)
+
         """ Implement the forward checking algorithm from the theory lectures.
 
         :param domains: current domains.
@@ -152,15 +180,41 @@ class CSP(ABC):
         :param variable: If not None, the variable that was just assigned (only need to check changes).
         :return: the new domains after enforcing all constraints.
         """
-        # TODO: Implement CSP::forwardChecking (problem 2)
-        pass
+
+        # Necessary: isValidPairwise -> given current assignment to variable, check domains of all other variables
+
+        domains = deepcopy(domains)
+
+        for assigned_var, assigned_value in assignment.items():
+
+            # Filter out already assigned variables
+            unassigned_var_domains = {var: domain for var, domain in domains.items() if var not in assignment.keys()}
+
+            for unassigned_var, domain in unassigned_var_domains.items():
+                elems_to_remove = set()
+                for elem in domain:
+                    if not self.isValidPairwise(assigned_var, assigned_value, unassigned_var, elem):
+                        elems_to_remove.add(elem)
+
+                domains[unassigned_var] = domain.difference(elems_to_remove)
+
+                if len(domain) == 0:
+                    return domains
+
+        return domains
 
     def selectVariable(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]]) -> Variable:
         """ Implement a strategy to select the next variable to assign. """
         if not self.MRV:
             return random.choice(list(self.remainingVariables(assignment)))
 
-        # TODO: Implement CSP::selectVariable (problem 2)
+        unassigned_var_domains = {var: domain for var, domain in domains.items() if var not in assignment.keys()}
+        domain_lengths = {var: len(domain) for var, domain in unassigned_var_domains.items()}
+        min_domain_length = min(domain_lengths.values())
+
+        for current_var, current_domain_length in domain_lengths.items():
+            if current_domain_length == min_domain_length:
+                return current_var
 
     def orderDomain(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]], var: Variable) -> \
             List[Value]:
