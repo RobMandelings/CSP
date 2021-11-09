@@ -131,7 +131,7 @@ class CSP(ABC):
         """ Called to solve this CSP with forward checking.
             Initializes the domains and calls `CSP::_solveForwardChecking`. """
         domains = domainsFromAssignment(initialAssignment, self.variables)
-        domains = self.forwardChecking(initialAssignment, domains)
+        domains, nr_pruned = self.forwardChecking(initialAssignment, domains)
         return self._solveForwardChecking(initialAssignment, domains)
 
     @monitor
@@ -149,7 +149,7 @@ class CSP(ABC):
 
             for value in self.orderDomain(assignment, domains, var):
                 assignment[var] = value
-                pruned_domains = self.forwardChecking(assignment, domains, var)
+                pruned_domains, nr_pruned = self.forwardChecking(assignment, domains, var)
 
                 valid = True
                 for pruned_domain in pruned_domains.values():
@@ -168,7 +168,7 @@ class CSP(ABC):
             return None
 
     def forwardChecking(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]],
-                        variable: Optional[Variable] = None) -> (bool, Dict[Variable, Set[Value]]):
+                        variable: Optional[Variable] = None) -> (Dict[Variable, Set[Value]], Value):
 
         # Differences noticed: less calls often necessary, although domains still randomly ordered so may take lots of calls.
         # Calls are faster due to checking whether an assignment is valid or not happens faster (pruned)
@@ -178,12 +178,13 @@ class CSP(ABC):
         :param domains: current domains.
         :param assignment: current assignment.
         :param variable: If not None, the variable that was just assigned (only need to check changes).
-        :return: the new domains after enforcing all constraints.
+        :return: the new domains after enforcing all constraints and the numbers of elements pruned from the domain.
         """
 
         # Necessary: isValidPairwise -> given current assignment to variable, check domains of all other variables
 
         domains = deepcopy(domains)
+        nr_pruned = 0
 
         for assigned_var, assigned_value in assignment.items():
 
@@ -195,13 +196,14 @@ class CSP(ABC):
                 for elem in domain:
                     if not self.isValidPairwise(assigned_var, assigned_value, unassigned_var, elem):
                         elems_to_remove.add(elem)
+                        nr_pruned += 1
 
                 domains[unassigned_var] = domain.difference(elems_to_remove)
 
                 if len(domain) == 0:
-                    return domains
+                    return domains, nr_pruned
 
-        return domains
+        return domains, nr_pruned
 
     def selectVariable(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]]) -> Variable:
         """ Implement a strategy to select the next variable to assign. """
@@ -222,7 +224,23 @@ class CSP(ABC):
         if not self.LCV:
             return list(domains[var])
 
-        # TODO: Implement CSP::orderDomain (problem 2)
+        unassigned_var_domains = {var: domain for var, domain in domains.items() if var not in assignment.keys()}
+        domain_to_order = domains[var]
+
+        value_nr_pruned_dict = dict()
+
+        for val in domain_to_order:
+            current_assignment = deepcopy(assignment)
+            current_assignment[var] = val
+
+            domains, nr_pruned = self.forwardChecking(current_assignment, unassigned_var_domains)
+            value_nr_pruned_dict[val] = nr_pruned
+
+        ordered_value_nr_pruned_dict = dict(
+            sorted(value_nr_pruned_dict.items(), key=lambda item: item[1], reverse=False))
+        ordered_domain = list(ordered_value_nr_pruned_dict.keys())
+
+        return ordered_domain
 
     def solveAC3(self, initialAssignment: Dict[Variable, Value] = dict()) -> Optional[Dict[Variable, Value]]:
         """ Called to solve this CSP with AC3.
