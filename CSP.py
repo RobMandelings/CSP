@@ -233,8 +233,16 @@ class CSP(ABC):
             current_assignment = deepcopy(assignment)
             current_assignment[var] = val
 
-            domains, nr_pruned = self.forwardChecking(current_assignment, unassigned_var_domains)
-            value_nr_pruned_dict[val] = nr_pruned
+            pruned_domains, nr_pruned = self.forwardChecking(current_assignment, unassigned_var_domains)
+
+            # LCV only works properly if the pruned domains do not contain empty sets
+            contains_empty_domain = False
+            for pruned_var, pruned_domain in pruned_domains.items():
+                if len(pruned_domain) == 0:
+                    contains_empty_domain = True
+
+            if not contains_empty_domain:
+                value_nr_pruned_dict[val] = nr_pruned
 
         ordered_value_nr_pruned_dict = dict(
             sorted(value_nr_pruned_dict.items(), key=lambda item: item[1], reverse=False))
