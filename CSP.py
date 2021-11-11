@@ -7,14 +7,12 @@ from util import monitor
 
 Value = TypeVar('Value')
 
-
 class Variable(ABC):
     @property
     @abstractmethod
     def startDomain(self) -> Set[Value]:
         """ Returns the set of initial values of this variable (not taking constraints into account). """
         pass
-
 
 class CSP(ABC):
     def __init__(self, MRV=True, LCV=True):
@@ -230,7 +228,7 @@ class CSP(ABC):
         if not self.LCV:
             return list(domains[var])
 
-        domain_to_order = domains[var]
+        domain_to_order = domains.pop(var)
 
         value_nr_pruned_dict = dict()
 
@@ -238,7 +236,7 @@ class CSP(ABC):
             current_assignment = copy(assignment)
             current_assignment[var] = val
 
-            pruned_domains, nr_pruned = self.forwardChecking(current_assignment, domains)
+            pruned_domains, nr_pruned = self.forwardChecking(current_assignment, domains, var)
 
             # LCV only works properly if the pruned domains do not contain empty sets
             contains_empty_domain = False
@@ -252,6 +250,9 @@ class CSP(ABC):
         ordered_value_nr_pruned_dict = dict(
             sorted(value_nr_pruned_dict.items(), key=lambda item: item[1], reverse=False))
         ordered_domain = list(ordered_value_nr_pruned_dict.keys())
+
+        # Reset domain
+        domains[var] = domain_to_order
 
         return ordered_domain
 
@@ -355,12 +356,8 @@ class CSP(ABC):
 
         return False
 
-
 def domainsFromAssignment(assignment: Dict[Variable, Value], variables: Set[Variable]) -> Dict[Variable, Set[Value]]:
     """ Fills in the initial domains for each variable.
-        Already assigned variables only contain the given value in their domain.
     """
-    domains = {v: v.startDomain for v in variables}
-    for var, val in assignment.items():
-        domains[var] = {val}
+    domains = {v: v.startDomain for v in variables if v not in assignment}
     return domains
