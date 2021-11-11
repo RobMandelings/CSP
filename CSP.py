@@ -1,5 +1,5 @@
 import random
-from copy import deepcopy
+from copy import deepcopy, copy
 from typing import Set, Dict, List, TypeVar, Optional
 from abc import ABC, abstractmethod
 
@@ -91,6 +91,7 @@ class CSP(ABC):
     def solveBruteForce(self, initialAssignment: Dict[Variable, Value] = dict()) -> Optional[Dict[Variable, Value]]:
         """ Called to solve this CSP with brute force technique.
             Initializes the domains and calls `CSP::_solveBruteForce`. """
+        initialAssignment = deepcopy(initialAssignment)
         domains = domainsFromAssignment(initialAssignment, self.variables)
         return self._solveBruteForce(initialAssignment, domains)
 
@@ -128,6 +129,7 @@ class CSP(ABC):
         Dict[Variable, Value]]:
         """ Called to solve this CSP with forward checking.
             Initializes the domains and calls `CSP::_solveForwardChecking`. """
+        initialAssignment = deepcopy(initialAssignment)
         domains = domainsFromAssignment(initialAssignment, self.variables)
         domains, nr_pruned = self.forwardChecking(initialAssignment, domains)
         return self._solveForwardChecking(initialAssignment, domains)
@@ -157,7 +159,7 @@ class CSP(ABC):
                 if not valid:
                     assignment.pop(var)
                 else:
-                    result = self._solveForwardChecking(deepcopy(assignment), pruned_domains)
+                    result = self._solveForwardChecking(copy(assignment), pruned_domains)
 
                     if result is not None:
                         return result
@@ -181,7 +183,7 @@ class CSP(ABC):
 
         # Necessary: isValidPairwise -> given current assignment to variable, check domains of all other variables
 
-        domains = deepcopy(domains)
+        domains = copy(domains)
         nr_pruned = 0
 
         for assigned_var, assigned_value in assignment.items():
@@ -228,7 +230,7 @@ class CSP(ABC):
         value_nr_pruned_dict = dict()
 
         for val in domain_to_order:
-            current_assignment = deepcopy(assignment)
+            current_assignment = copy(assignment)
             current_assignment[var] = val
 
             pruned_domains, nr_pruned = self.forwardChecking(current_assignment, unassigned_var_domains)
@@ -251,6 +253,7 @@ class CSP(ABC):
     def solveAC3(self, initialAssignment: Dict[Variable, Value] = dict()) -> Optional[Dict[Variable, Value]]:
         """ Called to solve this CSP with AC3.
             Initializes domains and calls `CSP::_solveAC3`. """
+        initialAssignment = deepcopy(initialAssignment)
         domains = domainsFromAssignment(initialAssignment, self.variables)
         domains = self.ac3(initialAssignment, domains)
         return self._solveAC3(initialAssignment, domains)
@@ -266,6 +269,7 @@ class CSP(ABC):
         if self.isComplete(assignment):
             return assignment
         else:
+            # Why is min(domain_lengths) an empty set?
             var = self.selectVariable(assignment, domains)
 
             for value in self.orderDomain(assignment, domains, var):
@@ -278,12 +282,11 @@ class CSP(ABC):
                 if new_domains is None:
                     assignment.pop(var)
                 else:
-                    result = self._solveAC3(deepcopy(assignment), new_domains)
+                    result = self._solveAC3(copy(assignment), new_domains)
 
                     if result is not None:
                         return result
 
-            self.isValid(assignment)
             return None
 
     def ac3(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]],
@@ -296,7 +299,7 @@ class CSP(ABC):
         :return: the new domains ensuring arc consistency or none in case a domain was made empty (backtrack required)
         """
 
-        domains = deepcopy(domains)
+        domains = copy(domains)
         unassigned_variables = self.remainingVariables(assignment)
 
         queue = []
@@ -327,7 +330,7 @@ class CSP(ABC):
 
     def removeInconsistentValues(self, domains: Dict[Variable, Set[Value]], var1, var2) -> bool:
 
-        adjusted_domain_var1 = deepcopy(domains[var1])
+        adjusted_domain_var1 = copy(domains[var1])
 
         for val_var1 in domains[var1]:
             constraintSatisfied = False
