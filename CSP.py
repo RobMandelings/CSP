@@ -7,12 +7,14 @@ from util import monitor
 
 Value = TypeVar('Value')
 
+
 class Variable(ABC):
     @property
     @abstractmethod
     def startDomain(self) -> Set[Value]:
         """ Returns the set of initial values of this variable (not taking constraints into account). """
         pass
+
 
 class CSP(ABC):
     def __init__(self, MRV=True, LCV=True):
@@ -116,11 +118,15 @@ class CSP(ABC):
 
             for value in self.orderDomain(assignment, domains, var):
                 assignment[var] = value
+                prev_domain = domains.pop(var)
+
                 if self.isValid(assignment):
-                    result = self._solveBruteForce(deepcopy(assignment), domains)
+                    result = self._solveBruteForce(assignment, domains)
                     if result is not None:
                         return result
-                    assignment.pop(var)
+
+                assignment.pop(var)
+                domains[var] = prev_domain
 
             self.isValid(assignment)
             return None
@@ -149,6 +155,8 @@ class CSP(ABC):
 
             for value in self.orderDomain(assignment, domains, var):
                 assignment[var] = value
+                prev_domain = domains.pop(var)
+
                 pruned_domains, nr_pruned = self.forwardChecking(assignment, domains, var)
 
                 valid = True
@@ -156,15 +164,15 @@ class CSP(ABC):
                     if len(pruned_domain) == 0:
                         valid = False
 
-                if not valid:
-                    assignment.pop(var)
-                else:
-                    result = self._solveForwardChecking(copy(assignment), pruned_domains)
+                if valid:
+                    result = self._solveForwardChecking(assignment, pruned_domains)
 
                     if result is not None:
                         return result
 
-            self.isValid(assignment)
+                assignment.pop(var)
+                domains[var] = prev_domain
+
             return None
 
     def forwardChecking(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]],
@@ -186,12 +194,11 @@ class CSP(ABC):
         domains = copy(domains)
         nr_pruned = 0
 
-        for assigned_var, assigned_value in assignment.items():
+        adjusted_assignment = assignment if variable is None else {variable: assignment[variable]}
 
-            # Filter out already assigned variables
-            unassigned_var_domains = {var: domain for var, domain in domains.items() if var not in assignment.keys()}
+        for assigned_var, assigned_value in adjusted_assignment.items():
 
-            for unassigned_var, domain in unassigned_var_domains.items():
+            for unassigned_var, domain in domains.items():
                 elems_to_remove = set()
                 for elem in domain:
                     if not self.isValidPairwise(assigned_var, assigned_value, unassigned_var, elem):
@@ -210,8 +217,7 @@ class CSP(ABC):
         if not self.MRV:
             return random.choice(list(self.remainingVariables(assignment)))
 
-        unassigned_var_domains = {var: domain for var, domain in domains.items() if var not in assignment.keys()}
-        domain_lengths = {var: len(domain) for var, domain in unassigned_var_domains.items()}
+        domain_lengths = {var: len(domain) for var, domain in domains.items()}
         min_domain_length = min(domain_lengths.values())
 
         for current_var, current_domain_length in domain_lengths.items():
@@ -224,7 +230,6 @@ class CSP(ABC):
         if not self.LCV:
             return list(domains[var])
 
-        unassigned_var_domains = {var: domain for var, domain in domains.items() if var not in assignment.keys()}
         domain_to_order = domains[var]
 
         value_nr_pruned_dict = dict()
@@ -233,7 +238,7 @@ class CSP(ABC):
             current_assignment = copy(assignment)
             current_assignment[var] = val
 
-            pruned_domains, nr_pruned = self.forwardChecking(current_assignment, unassigned_var_domains)
+            pruned_domains, nr_pruned = self.forwardChecking(current_assignment, domains)
 
             # LCV only works properly if the pruned domains do not contain empty sets
             contains_empty_domain = False
@@ -274,18 +279,20 @@ class CSP(ABC):
 
             for value in self.orderDomain(assignment, domains, var):
                 assignment[var] = value
+                prev_domain = domains.pop(var)
 
                 new_domains, nr_pruned = self.forwardChecking(assignment, domains, var)
                 new_domains = self.ac3(assignment, new_domains, var)
 
                 # Backtrack required
-                if new_domains is None:
-                    assignment.pop(var)
-                else:
-                    result = self._solveAC3(copy(assignment), new_domains)
+                if new_domains is not None:
+                    result = self._solveAC3(assignment, new_domains)
 
                     if result is not None:
                         return result
+
+                assignment.pop(var)
+                domains[var] = prev_domain
 
             return None
 
@@ -347,6 +354,7 @@ class CSP(ABC):
             return True
 
         return False
+
 
 def domainsFromAssignment(assignment: Dict[Variable, Value], variables: Set[Variable]) -> Dict[Variable, Set[Value]]:
     """ Fills in the initial domains for each variable.
