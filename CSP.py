@@ -7,14 +7,12 @@ from util import monitor
 
 Value = TypeVar('Value')
 
-
 class Variable(ABC):
     @property
     @abstractmethod
     def startDomain(self) -> Set[Value]:
         """ Returns the set of initial values of this variable (not taking constraints into account). """
         pass
-
 
 class CSP(ABC):
     def __init__(self, MRV=True, LCV=True):
@@ -265,21 +263,87 @@ class CSP(ABC):
             Use `CSP::ac3`.
             :return: a complete and valid assignment if one exists, None otherwise.
         """
-        # TODO: Implement CSP::_solveAC3 (problem 3)
-        pass
+        if self.isComplete(assignment):
+            return assignment
+        else:
+            var = self.selectVariable(assignment, domains)
+
+            for value in self.orderDomain(assignment, domains, var):
+                assignment[var] = value
+
+                new_domains, nr_pruned = self.forwardChecking(assignment, domains, var)
+                new_domains = self.ac3(assignment, new_domains, var)
+
+                # Backtrack required
+                if new_domains is None:
+                    assignment.pop(var)
+                else:
+                    result = self._solveAC3(deepcopy(assignment), new_domains)
+
+                    if result is not None:
+                        return result
+
+            self.isValid(assignment)
+            return None
 
     def ac3(self, assignment: Dict[Variable, Value], domains: Dict[Variable, Set[Value]],
-            variable: Optional[Variable] = None) -> Dict[Variable, Set[Value]]:
+            variable: Optional[Variable] = None) -> Dict[Variable, Set[Value]] or None:
         """ Implement the AC3 algorithm from the theory lectures.
 
         :param domains: current domains.
         :param assignment: current assignment.
         :param variable: If not None, the variable that was just assigned (only need to check changes).
-        :return: the new domains ensuring arc consistency.
+        :return: the new domains ensuring arc consistency or none in case a domain was made empty (backtrack required)
         """
-        # TODO: Implement CSP::ac3 (problem 3)
-        pass
 
+        domains = deepcopy(domains)
+        unassigned_variables = self.remainingVariables(assignment)
+
+        queue = []
+
+        for var1 in unassigned_variables:
+            for var2 in unassigned_variables:
+                if var1 == var2:
+                    continue
+
+                queue.append((var1, var2))
+
+        while len(queue) > 0:
+            tail_var, head_var = queue.pop(0)
+
+            if self.removeInconsistentValues(domains, tail_var, head_var):
+
+                for neighbour in self.neighbors(tail_var):
+                    if neighbour in assignment:
+                        continue
+                    new_arc = (neighbour, tail_var)
+                    if new_arc not in queue:
+                        queue.append(new_arc)
+
+            if len(domains[tail_var]) == 0:
+                return None
+
+        return domains
+
+    def removeInconsistentValues(self, domains: Dict[Variable, Set[Value]], var1, var2) -> bool:
+
+        adjusted_domain_var1 = deepcopy(domains[var1])
+
+        for val_var1 in domains[var1]:
+            constraintSatisfied = False
+            for val_var2 in domains[var2]:
+                if self.isValidPairwise(var1, val_var1, var2, val_var2):
+                    constraintSatisfied = True
+                    break
+
+            if not constraintSatisfied:
+                adjusted_domain_var1.remove(val_var1)
+
+        if adjusted_domain_var1 != domains[var1]:
+            domains[var1] = adjusted_domain_var1
+            return True
+
+        return False
 
 def domainsFromAssignment(assignment: Dict[Variable, Value], variables: Set[Variable]) -> Dict[Variable, Set[Value]]:
     """ Fills in the initial domains for each variable.
